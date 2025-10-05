@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crypto Market Overview</title>
+<style>
+  body {font-family: "Segoe UI", Arial, sans-serif; background: #0d1117; color: #e6edf3;
+        margin: 0; padding: 1rem; text-align: center;}
+  .card {background: #161b22; border-radius: 12px; padding: 1rem; margin: 1rem auto;
+         max-width: 400px; box-shadow: 0 0 10px rgba(255,255,255,0.05);}
+  h2 {margin: 0.2rem 0 1rem;}
+  .small {font-size: 0.9rem; color: #ccc;}
+  .metric {margin: 0.3rem 0;}
+  .bold {font-weight: bold;}
+  .blink {animation: blink 1s infinite; color: #ff4747; font-weight: bold;}
+  @keyframes blink {50% {opacity: 0;}}
+  @media (max-width: 500px) {body {padding: 0.5rem;} .card {margin: 0.5rem; padding: 0.8rem;}}
+</style>
+</head>
+<body>
+<h3 id="datetime"></h3>
+<h2>🌐 Global Crypto Market Overview</h2>
+<div class="card" id="market-data">
+  <div class="metric" id="total1"></div>
+  <div class="metric" id="total2"></div>
+  <div class="metric" id="total3"></div>
+  <hr>
+  <div class="metric" id="btcDom"></div>
+  <div class="metric" id="ethDom"></div>
+  <div class="metric" id="altDom"></div>
+</div>
+<div class="card">
+  <h3>📊 Practical Exit Rule (Common Strategy)</h3>
+  <div class="small">
+    • Fear & Greed Index > 80 (Extreme Greed)<br>
+    • Altcoin Season Index > 75 (Altcoin mania)<br>
+    • Total 3 share > 40–50% of Total 1 (risk-on altcoin bubble)<br><br>
+    When these line up, it’s historically been a good time to take profit / exit partially.
+  </div>
+</div>
+<script>
+async function fetchData() {
+  try {
+    const res = await fetch("https://api.coingecko.com/api/v3/global");
+    const data = (await res.json()).data;
+    const total = data.total_market_cap.usd;
+    const btcDom = data.market_cap_percentage.btc;
+    const ethDom = data.market_cap_percentage.eth;
+    const btcCap = total * btcDom / 100;
+    const ethCap = total * ethDom / 100;
+    const total2 = total - btcCap;
+    const total3 = total - btcCap - ethCap;
+    const total2pct = (total2 / total) * 100;
+    const total3pct = (total3 / total) * 100;
+    const altDom = 100 - (btcDom + ethDom);
+    document.getElementById("total1").innerHTML = 
+      `Total 1 (All Crypto): USD ${(total/1e12).toFixed(2)}T`;
+    document.getElementById("total2").innerHTML = 
+      `Total 2 (Excl. BTC): USD ${(total2/1e12).toFixed(2)}T (${total2pct.toFixed(1)}% of Total 1)`;
+    const total3Elem = document.getElementById("total3");
+    if (total3pct > 40) {
+      total3Elem.classList.add("blink");
+      total3Elem.innerHTML = `⚠️ Total 3 (Excl. BTC & ETH): USD ${(total3/1e12).toFixed(2)}T (${total3pct.toFixed(1)}% of Total 1) !!!`;
+    } else {
+      total3Elem.innerHTML = 
+        `Total 3 (Excl. BTC & ETH): USD ${(total3/1e12).toFixed(2)}T (${total3pct.toFixed(1)}% of Total 1)`;
+    }
+    document.getElementById("btcDom").innerText = `BTC Dominance: ${btcDom.toFixed(1)}%`;
+    document.getElementById("ethDom").innerText = `ETH Dominance: ${ethDom.toFixed(1)}%`;
+    document.getElementById("altDom").innerText = `Altcoin Dominance: ${altDom.toFixed(1)}%`;
+  } catch (err) {
+    document.getElementById("market-data").innerHTML = "<p>⚠️ Error loading data.</p>";
+  }
+}
+function updateTime() {
+  const now = new Date();
+  document.getElementById("datetime").innerText = now.toLocaleString();
+}
+updateTime();
+fetchData();
+setInterval(updateTime, 60000);
+setInterval(fetchData, 300000);
+</script>
+</body>
+</html>
