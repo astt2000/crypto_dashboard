@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crypto Market Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body {
+    font-family: "Segoe UI", Roboto, sans-serif;
+    background-color: #0d1117;
+    color: #e6edf3;
+    text-align: center;
+    margin: 0;
+    padding: 10px;
+  }
+
+  h2 {
+    color: #00c896;
+    margin-bottom: 5px;
+    font-size: 1.4em;
+  }
+
+  #timestamp {
+    font-size: 0.9em;
+    color: #9ca3af;
+    margin-bottom: 10px;
+  }
+
+  .card {
+    background: #161b22;
+    border-radius: 10px;
+    padding: 15px;
+    margin: 8px auto;
+    width: 95%;
+    max-width: 420px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+  }
+
+  .line {
+    margin: 6px 0;
+    font-size: 0.95em;
+  }
+
+  .total1 { color: #00ff9d; }
+  .total2 { color: #4fc3f7; }
+  .total3 { color: #ffeb3b; }
+  .alert { color: #ff5252; font-weight: bold; animation: blink 1.2s infinite; }
+
+  @keyframes blink { 50% { opacity: 0.4; } }
+
+  .chart-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 6px;
+  }
+
+  canvas {
+    max-width: 180px;
+    height: auto !important;
+  }
+
+  .card.compact {
+    padding: 10px 12px;
+  }
+
+  .compact p {
+    margin: 4px 0;
+    font-size: 0.9em;
+  }
+
+  @media (max-width: 480px) {
+    body { padding: 8px; }
+    .card { padding: 12px; }
+    h2 { font-size: 1.2em; }
+    .line { font-size: 0.9em; }
+  }
+</style>
+</head>
+<body>
+  <h2>📊 Global Crypto Market Overview</h2>
+  <div id="timestamp">Loading time...</div>
+
+  <div class="card" id="marketCapCard">
+    <div class="line total1" id="total1">Loading...</div>
+    <div class="line total2" id="total2">Loading...</div>
+    <div class="line total3" id="total3">Loading...</div>
+  </div>
+
+  <div class="card compact">
+    <p>BTC Dominance: <b><span id="btcDom">Loading...</span></b></p>
+    <p>ETH Dominance: <b><span id="ethDom">Loading...</span></b></p>
+    <div class="chart-container">
+      <canvas id="dominanceChart"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <p><b>📈 Practical Exit Rule (Common Strategy):</b></p>
+    <p style="font-size: 0.85em; color: #9ca3af;">
+      • Fear & Greed Index &gt; 80 (Extreme Greed)<br>
+      • Altcoin Season Index &gt; 75 (Altcoin mania)<br>
+      • Total 3 share &gt; 40–50% of Total 1 (risk-on altcoin bubble)<br><br>
+      When these line up, it’s historically been a good time to take profit / exit partially.
+    </p>
+  </div>
+
+  <script>
+    function updateTime() {
+      const now = new Date();
+      const options = { timeZone: 'Asia/Kuala_Lumpur', hour12: true,
+                        year: 'numeric', month: 'short', day: 'numeric',
+                        hour: '2-digit', minute: '2-digit', second: '2-digit' };
+      document.getElementById("timestamp").innerText =
+        new Intl.DateTimeFormat('en-MY', options).format(now);
+    }
+
+    async function loadData() {
+      try {
+        const res = await fetch("https://api.coingecko.com/api/v3/global");
+        const data = await res.json();
+
+        const mcap = data.data.total_market_cap.usd;
+        const btcDom = data.data.market_cap_percentage.btc;
+        const ethDom = data.data.market_cap_percentage.eth;
+
+        const btcCap = mcap * btcDom / 100;
+        const ethCap = mcap * ethDom / 100;
+
+        const total1 = mcap / 1e12;
+        const total2 = (mcap - btcCap) / 1e12;
+        const total3 = (mcap - btcCap - ethCap) / 1e12;
+
+        const pct2 = (total2 / total1 * 100).toFixed(1);
+        const pct3 = (total3 / total1 * 100).toFixed(1);
+
+        document.getElementById("total1").innerHTML =
+          `💰 Total 1 (All): <b>USD ${total1.toFixed(2)} T</b>`;
+        document.getElementById("total2").innerHTML =
+          `🔷 Total 2 (Excl. BTC): <b>USD ${total2.toFixed(2)} T</b> (${pct2}% of Total 1)`;
+
+        const t3 = document.getElementById("total3");
+        if (pct3 > 40) {
+          t3.innerHTML =
+            `🌈 Total 3 (Excl. BTC & ETH): <b>USD ${total3.toFixed(2)} T (${pct3}% of Total 1) !!!</b>`;
+          t3.classList.add("alert");
+        } else {
+          t3.innerHTML =
+            `🌈 Total 3 (Excl. BTC & ETH): <b>USD ${total3.toFixed(2)} T</b> (${pct3}% of Total 1)`;
+          t3.classList.remove("alert");
+        }
+
+        document.getElementById("btcDom").innerText = btcDom.toFixed(1) + "%";
+        document.getElementById("ethDom").innerText = ethDom.toFixed(1) + "%";
+
+        const ctx = document.getElementById('dominanceChart').getContext('2d');
+        if (window.domChart) window.domChart.destroy();
+        window.domChart = new Chart(ctx, {
+          type: 'pie',
+          data: {
+            labels: ['BTC', 'ETH', 'Altcoins'],
+            datasets: [{
+              data: [btcDom, ethDom, 100 - btcDom - ethDom],
+              backgroundColor: ['#f7931a', '#3c3c3d', '#00c896']
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                labels: { color: '#e6edf3', font: { size: 11 } },
+                position: 'bottom'
+              }
+            }
+          }
+        });
+
+      } catch (e) {
+        console.error("Error loading data", e);
+      }
+    }
+
+    updateTime();
+    loadData();
+    setInterval(updateTime, 1000);
+    setInterval(loadData, 60000);
+  </script>
+</body>
+</html>

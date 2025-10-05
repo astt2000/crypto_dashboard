@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Crypto Market Overview</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: linear-gradient(180deg, #f7faff, #e8f0ff);
+      color: #222;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px;
+      gap: 25px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 26px;
+      color: #333;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 18px;
+      width: 100%;
+      max-width: 900px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      padding: 20px;
+      text-align: center;
+      transition: transform 0.2s;
+    }
+    .card:hover { transform: translateY(-3px); }
+    .label { font-size: 14px; color: #555; margin-bottom: 8px; }
+    .value { font-size: 20px; font-weight: 400; margin: 4px 0; }
+    .percent { font-size: 13px; color: #444; margin-top: 4px; }
+    .status { font-size: 12px; color: #666; }
+    .card-exit {
+      background: #fffbe6;
+      border: 1px solid #ffd24d;
+      color: #333;
+    }
+    .exit-title { font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+    .exit-text { font-size: 13px; line-height: 1.6; text-align: left; }
+    .blink {
+      font-weight: 700;
+      color: #e63946;
+      animation: blink 1s infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+    .chart-container {
+      width: 100%;
+      max-width: 480px;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      padding: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>📊 Crypto Market Overview</h1>
+
+  <div class="grid">
+    <div class="card">
+      <div class="label">Total 1 — All Market Cap</div>
+      <div id="total1" class="value">Loading…</div>
+    </div>
+    <div class="card">
+      <div class="label">Total 2 — Excl. BTC</div>
+      <div id="total2" class="value">Loading…</div>
+      <div id="pct2" class="percent"></div>
+    </div>
+    <div class="card">
+      <div class="label">Total 3 — Excl. BTC & ETH</div>
+      <div id="total3" class="value">Loading…</div>
+      <div id="pct3" class="percent"></div>
+    </div>
+    <div class="card">
+      <div class="label">BTC Dominance</div>
+      <div id="btcDom" class="value">Loading…</div>
+    </div>
+    <div class="card">
+      <div class="label">ETH Dominance</div>
+      <div id="ethDom" class="value">Loading…</div>
+    </div>
+    <div class="card card-exit">
+      <div class="exit-title">Practical Exit Rule (Common Strategy):</div>
+      <div class="exit-text">
+        • Fear &amp; Greed Index &gt; 80 (Extreme Greed)<br>
+        • Altcoin Season Index &gt; 75 (Altcoin mania)<br>
+        • <b>Total 3 share &gt; 40–50 % of Total 1</b> (risk-on altcoin bubble)<br><br>
+        When these line up, it’s historically been a good time to take profit / exit partially.
+      </div>
+    </div>
+  </div>
+
+  <!-- Pie chart container -->
+  <div class="chart-container">
+    <canvas id="dominanceChart"></canvas>
+  </div>
+
+  <div id="status" class="status">Status: waiting…</div>
+
+  <script>
+    let domChart;
+
+    function fmtTrillions(n) {
+      if (!isFinite(n)) return "N/A";
+      return "$" + (n / 1e12).toFixed(2) + " T";
+    }
+
+    async function loadData() {
+      try {
+        const res = await fetch("https://api.coingecko.com/api/v3/global");
+        const data = await res.json();
+        const mcap = data.data.total_market_cap.usd;
+        const btcPct = data.data.market_cap_percentage.btc;
+        const ethPct = data.data.market_cap_percentage.eth;
+
+        const btcCap = mcap * (btcPct / 100);
+        const ethCap = mcap * (ethPct / 100);
+        const total1 = mcap;
+        const total2 = mcap - btcCap;
+        const total3 = total2 - ethCap;
+
+        document.getElementById("total1").innerText = fmtTrillions(total1);
+        document.getElementById("total2").innerText = fmtTrillions(total2);
+        document.getElementById("total3").innerText = fmtTrillions(total3);
+
+        const pct2 = ((total2 / total1) * 100).toFixed(1);
+        const pct3 = ((total3 / total1) * 100).toFixed(1);
+        document.getElementById("pct2").innerText = pct2 + "% of Total 1";
+
+        const total3El = document.getElementById("pct3");
+        if (pct3 > 40) {
+          total3El.innerHTML = `<span class="blink">${pct3}% of Total 1 !!!</span>`;
+        } else {
+          total3El.innerText = pct3 + "% of Total 1";
+        }
+
+        document.getElementById("btcDom").innerText = btcPct.toFixed(1) + "%";
+        document.getElementById("ethDom").innerText = ethPct.toFixed(1) + "%";
+
+        // Draw or update pie chart
+        const altPct = 100 - btcPct - ethPct;
+        const ctx = document.getElementById("dominanceChart").getContext("2d");
+        const dataSet = {
+          labels: ["BTC", "ETH", "Altcoins"],
+          datasets: [{
+            data: [btcPct, ethPct, altPct],
+            backgroundColor: ["#f7931a", "#627eea", "#3ba55d"],
+            borderWidth: 1
+          }]
+        };
+        if (domChart) {
+          domChart.data = dataSet;
+          domChart.update();
+        } else {
+          domChart = new Chart(ctx, {
+            type: "pie",
+            data: dataSet,
+            options: {
+              plugins: {
+                legend: { position: "bottom" },
+                title: { display: true, text: "Market Cap Dominance" }
+              }
+            }
+          });
+        }
+
+        document.getElementById("status").innerText =
+          "Last update: " + new Date().toLocaleString();
+      } catch (e) {
+        document.getElementById("status").innerText = "Error: " + e;
+      }
+    }
+
+    loadData();
+    setInterval(loadData, 60000);
+  </script>
+</body>
+</html>
